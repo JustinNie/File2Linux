@@ -14,6 +14,8 @@ from torch.autograd import Variable
 from torch.nn.parameter import Parameter
 import matplotlib.pyplot as plt
 import math
+import pickle
+import re
 
 
 MODEL = 2
@@ -26,10 +28,31 @@ HIDDEN_FEATURES = 5 * HIDDEN_VECTOR
 OUT_FEATURES = 50
 
 LR = 0.01
-EPOCH = 10
+EPOCH = 1000
 BATCH_SIZE = 100
 
 torch.manual_seed(10)
+
+
+
+def ConstructOriginal():
+	'''
+		Construct a dictionary to replace wn.synsets() in lemmas
+		Input File: None
+		Output File: SynsetLemmas.pkl
+		'''
+	from nltk.corpus import wordnet as wn 
+
+	synset_name_lemmas= {}
+
+	for synset in wn.all_synsets():
+		item = synset.name()
+		item_dict = synset.lemma_names()
+
+		synset_name_lemmas[item] = item_dict
+
+	f_synset_name_lemmas = open('../Data/SynsetLemmas.pkl', 'wb')
+	pickle.dump(synset_name_lemmas, f_synset_name_lemmas)
 
 
 
@@ -41,8 +64,9 @@ def CountWordNet():
 		Input File: None.
 		Output File: LemmaLengthAll.npy, SynsetNameAll.npy.
 	'''
-	import nltk
-	from nltk.corpus import wordnet as wn
+	
+	f_synset_name_lemmas = open('../Data/SynsetLemmas.pkl', 'rb')
+	synset_name_lemmas = pickle.load(f_synset_name_lemmas)
 
 	synset_name = []
 	lemma_length = []
@@ -50,10 +74,10 @@ def CountWordNet():
 	synset_name_number = {}
 	synset_number_name = {}
 	number = 0
-	for item in wn.all_synsets():
-		name = item.name()
-		lemma_length.append(len(item.lemma_names()))
-		for i in range(int(len(item.lemma_names()) / NUMBER) + 1):
+	for item, lemmas in synset_name_lemmas.items():
+		name = item
+		lemma_length.append(len(lemmas))
+		for i in range(int(len(lemmas) / NUMBER) + 1):
 			number += 1
 			name = name + str(i)
 
@@ -78,20 +102,21 @@ def CountWordNet():
 	np.save("../Data/Original/LemmaLengthAll.npy", lemma_length)
 
 
+
 def ConstructAllDict():
 	'''
 		Usage: Construct all synsets in WordNet into a dictionary.
 		Input File: None.
 		Output File: SynsetDictAll.pkl.
 	'''
-	import nltk
-	from nltk.corpus import wordnet as wn
-
 	synset_dict = {}
 
-	for synset in wn.all_synsets():
-		item = synset.name()
-		item_dict = synset.lemma_names()
+	f_synset_name_lemmas = open('../Data/SynsetLemmas.pkl', 'rb')
+	synset_name_lemmas = pickle.load(f_synset_name_lemmas)
+
+	for synset, lemmas in synset_name_lemmas.items():
+		item = synset
+		item_dict = lemmas
 
 		index = 0
 		while len(item_dict) % NUMBER != 0:
@@ -123,9 +148,9 @@ def ConstructNewDict():
 		Output File: SynsetDict.npy, LemmaLength.npy, SynsetNames.npy, 
 					 SynsetNameNumber.pkl, SynsetNumberName.pkl.
 	'''
-	import nltk
-	from nltk.corpus import wordnet as wn
-	import re
+
+	f_synset_name_lemmas = open('../Data/SynsetLemmas.pkl', 'rb')
+	synset_name_lemmas = pickle.load(f_synset_name_lemmas)
 
 	raw = open('../Data/vocab.txt', 'r').read()
 	word_vocab = re.findall(r'[a-zA-Z]+', raw)
@@ -134,17 +159,19 @@ def ConstructNewDict():
 	synset_names = []
 	synset_name_number = {}
 	synset_number_name = {}
-	total_length = len(list(wn.all_synsets()))
+	total_length = len(synset_name_lemmas)
 	length = []
 	words = []
 
 	number = 0
-	for i, synset in enumerate(wn.all_synsets()):
+	i = 0
+	for synset, lemmas in synset_name_lemmas.items():
+		i += 1
 		if i % 1000 == 0:
 			print('Process %.2f%%' % (i / total_length * 100))
 
-		item_dict = synset.lemma_names()
-		name = synset.name()
+		item_dict = lemmas
+		name = synset
 
 		new_item_dict = []
 		for word in item_dict:
@@ -349,6 +376,7 @@ def Train0():
 	plt.ylabel('Loss')
 	plt.title("Losses' Change with Step 0")
 	plt.savefig('../Data/Model0/losses.jpg')
+	plt.cla()
 
 	losses = np.array(losses)
 	np.save('../Data/Model0/losses.npy', losses)
@@ -481,6 +509,7 @@ def Train1():
 	plt.ylabel('Loss')
 	plt.title("Losses' Change with Step 1")
 	plt.savefig('../Data/Model1/losses.jpg')
+	plt.cla()
 
 	losses = np.array(losses)
 	np.save('../Data/Model1/losses.npy', losses)
@@ -896,12 +925,20 @@ def PrintResults():
 		plt.ylabel('Accuracy')
 		plt.legend()
 		plt.savefig('../Data/Model%d/results.jpg' %model)
+		plt.cla()
 
 
 
+#print('Construct original wordnet with synset name and synset lemmas...')
+#ConstructOriginal()
+
+print('Count the basic information of wordnet...')
 CountWordNet()
+print('Construct dictionary of all synsets...')
 ConstructAllDict()
+print('Construct dictionary of new synsets according to the vocabulary...')
 ConstructNewDict()
+
 ConstructData('../Data/vectors.txt')
 
 print('Training model 0...')
@@ -919,41 +956,5 @@ GetResults()
 
 
 PrintResults()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
